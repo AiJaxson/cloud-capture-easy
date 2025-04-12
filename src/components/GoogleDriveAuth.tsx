@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Cloud, AlertCircle } from "lucide-react";
 
 // Google API client ID - replace with your own from Google Cloud Console
-const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"; // In a production app, this should come from environment variables
+const GOOGLE_CLIENT_ID = "738779605618-lpeqbphe60duk664mvu2fbfa7hfq8o3c.apps.googleusercontent.com"; // In a production app, this should come from environment variables
 const GOOGLE_API_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
 interface GoogleDriveAuthProps {
