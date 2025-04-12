@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { saveToLocalStorage, uploadToGoogleDrive } from "@/utils/storageUtils";
@@ -66,8 +65,7 @@ export const useRecorder = ({
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { 
-          cursor: "always",
+        video: {
           displaySurface: "monitor"
         },
         audio: true
