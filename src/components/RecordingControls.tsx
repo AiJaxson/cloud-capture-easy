@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { 
-  Play, Pause, Stop, Disc, Save, RotateCcw, 
+  Play, Pause, Square, Disc, Save, RotateCcw, 
   CheckCircle, X, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -102,7 +102,7 @@ const RecordingControls: React.FC<RecordingControlsProps> = ({
                 onClick={onStop}
                 className="h-14 w-14 rounded-full bg-red-500 hover:bg-red-600 recording-button"
               >
-                <Stop className="h-7 w-7 text-white" />
+                <Square className="h-7 w-7 text-white" />
               </Button>
               
               {status === 'recording' && (

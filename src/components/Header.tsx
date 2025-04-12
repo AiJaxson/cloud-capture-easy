@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Camera, CloudCheck, CloudOff } from 'lucide-react';
+import { Camera, Cloud, CheckCircle, CloudOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
@@ -20,7 +20,7 @@ const Header: React.FC<HeaderProps> = ({ isOnline, driveAuthenticated, onAuthCli
       <div className="flex items-center gap-3">
         {isOnline ? (
           <div className="flex items-center text-sm text-gray-600 dark:text-gray-300 gap-1">
-            <CloudCheck className="h-4 w-4 text-green-500" />
+            <Cloud className="h-4 w-4 text-green-500" />
             <span>Online</span>
           </div>
         ) : (
@@ -38,7 +38,7 @@ const Header: React.FC<HeaderProps> = ({ isOnline, driveAuthenticated, onAuthCli
         >
           {driveAuthenticated ? (
             <span className="flex items-center gap-1">
-              <CloudCheck className="h-4 w-4" />
+              <CheckCircle className="h-4 w-4" />
               Connected to Drive
             </span>
           ) : (

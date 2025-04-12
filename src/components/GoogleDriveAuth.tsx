@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { CloudCheck, AlertCircle } from "lucide-react";
+import { Cloud, AlertCircle } from "lucide-react";
 
 interface GoogleDriveAuthProps {
   isOpen: boolean;
@@ -36,7 +36,7 @@ const GoogleDriveAuth: React.FC<GoogleDriveAuthProps> = ({
         
         <div className="flex flex-col items-center py-6 space-y-4">
           <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-full">
-            <CloudCheck className="h-12 w-12 text-blue-500" />
+            <Cloud className="h-12 w-12 text-blue-500" />
           </div>
           
           <div className="text-center space-y-2">
