@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Cloud, AlertCircle } from "lucide-react";
+import { Cloud, AlertCircle, ExternalLink } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Google API client ID - replace with your own from Google Cloud Console
 const GOOGLE_CLIENT_ID = "738779605618-lpeqbphe60duk664mvu2fbfa7hfq8o3c.apps.googleusercontent.com"; // In a production app, this should come from environment variables
@@ -21,38 +22,52 @@ const GoogleDriveAuth: React.FC<GoogleDriveAuthProps> = ({
 }) => {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [domainOrigin, setDomainOrigin] = useState<string>("");
+  const [isInvalidOrigin, setIsInvalidOrigin] = useState(false);
 
   // Load Google API client
   useEffect(() => {
-    const loadGoogleApi = () => {
-      const script = document.createElement('script');
-      script.src = "https://apis.google.com/js/api.js";
-      script.onload = () => {
-        window.gapi.load('client:auth2', initGoogleAuth);
-      };
-      script.onerror = () => {
-        setAuthError("Failed to load Google API");
-      };
-      document.body.appendChild(script);
-    };
-
-    const initGoogleAuth = () => {
-      window.gapi.client.init({
-        clientId: GOOGLE_CLIENT_ID,
-        scope: GOOGLE_API_SCOPE,
-        plugin_name: "CloudCapture"
-      }).then(() => {
-        console.log("Google API client initialized");
-      }).catch((error: any) => {
-        console.error("Google API initialization error:", error);
-        setAuthError("Failed to initialize Google API");
-      });
-    };
-
     if (isOpen) {
+      // Get current domain for instructions
+      const currentDomain = window.location.origin;
+      setDomainOrigin(currentDomain);
+      
+      const loadGoogleApi = () => {
+        const script = document.createElement('script');
+        script.src = "https://apis.google.com/js/api.js";
+        script.onload = () => {
+          window.gapi.load('client:auth2', initGoogleAuth);
+        };
+        script.onerror = () => {
+          setAuthError("Failed to load Google API");
+        };
+        document.body.appendChild(script);
+      };
+
       loadGoogleApi();
     }
   }, [isOpen]);
+
+  const initGoogleAuth = () => {
+    window.gapi.client.init({
+      clientId: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_API_SCOPE,
+      plugin_name: "CloudCapture"
+    }).then(() => {
+      console.log("Google API client initialized");
+      setIsInvalidOrigin(false);
+    }).catch((error: any) => {
+      console.error("Google API initialization error:", error);
+      
+      // Check if this is an invalid origin error
+      if (error?.error === 'idpiframe_initialization_failed' &&
+          error?.details?.includes('Not a valid origin for the client')) {
+        setIsInvalidOrigin(true);
+      } else {
+        setAuthError("Failed to initialize Google API");
+      }
+    });
+  };
 
   const handleAuth = () => {
     setIsAuthenticating(true);
@@ -61,10 +76,10 @@ const GoogleDriveAuth: React.FC<GoogleDriveAuthProps> = ({
     try {
       const auth2 = window.gapi.auth2.getAuthInstance();
       
-      auth2.signIn().then(() => {
+      auth2.signIn().then((googleUser) => {
         setIsAuthenticating(false);
         // Save auth token for later use
-        const authResponse = auth2.currentUser.get().getAuthResponse();
+        const authResponse = googleUser.getAuthResponse();
         localStorage.setItem('googleDriveToken', authResponse.access_token);
         localStorage.setItem('googleDriveTokenExpiry', String(authResponse.expires_at));
         
@@ -73,7 +88,12 @@ const GoogleDriveAuth: React.FC<GoogleDriveAuthProps> = ({
       }).catch((error: any) => {
         console.error("Google Sign-in error:", error);
         setIsAuthenticating(false);
-        setAuthError("Authentication failed. Please try again.");
+        
+        if (error?.error === 'popup_closed_by_user') {
+          setAuthError("Sign-in popup was closed. Please try again.");
+        } else {
+          setAuthError("Authentication failed. Please try again.");
+        }
       });
     } catch (error) {
       console.error("Auth error:", error);
@@ -87,6 +107,9 @@ const GoogleDriveAuth: React.FC<GoogleDriveAuthProps> = ({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Connect to Google Drive</DialogTitle>
+          <DialogDescription>
+            Upload recordings directly to your Google Drive account
+          </DialogDescription>
         </DialogHeader>
         
         <div className="flex flex-col items-center py-6 space-y-4">
@@ -94,14 +117,39 @@ const GoogleDriveAuth: React.FC<GoogleDriveAuthProps> = ({
             <Cloud className="h-12 w-12 text-blue-500" />
           </div>
           
-          <div className="text-center space-y-2">
-            <h3 className="text-lg font-medium">Save recordings to Google Drive</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
-              Connect your Google Drive account to automatically upload and store your recordings in the cloud.
-            </p>
-          </div>
+          {isInvalidOrigin ? (
+            <Alert variant="destructive" className="my-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="space-y-4">
+                <p><strong>Domain not authorized</strong> in your Google Cloud Console.</p>
+                <p>Please add this domain to the authorized JavaScript origins in your Google Cloud project:</p>
+                <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded block overflow-x-auto">
+                  {domainOrigin}
+                </code>
+                <div className="text-sm">
+                  <p className="font-medium">Steps to fix:</p>
+                  <ol className="list-decimal pl-5 space-y-1">
+                    <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center">
+                      Google Cloud Console <ExternalLink className="h-3 w-3 ml-1" />
+                    </a></li>
+                    <li>Select your project</li>
+                    <li>Edit the OAuth 2.0 Client ID</li>
+                    <li>Add the above URL to "Authorized JavaScript origins"</li>
+                    <li>Click Save and refresh this page</li>
+                  </ol>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-medium">Save recordings to Google Drive</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
+                Connect your Google Drive account to automatically upload and store your recordings in the cloud.
+              </p>
+            </div>
+          )}
           
-          {authError && (
+          {authError && !isInvalidOrigin && (
             <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm flex items-center gap-2 w-full">
               <AlertCircle className="h-4 w-4" />
               {authError}
@@ -109,13 +157,15 @@ const GoogleDriveAuth: React.FC<GoogleDriveAuthProps> = ({
           )}
           
           <div className="flex flex-col space-y-3 pt-4 w-full">
-            <Button 
-              onClick={handleAuth} 
-              disabled={isAuthenticating}
-              className="w-full"
-            >
-              {isAuthenticating ? "Connecting..." : "Connect to Google Drive"}
-            </Button>
+            {!isInvalidOrigin && (
+              <Button 
+                onClick={handleAuth} 
+                disabled={isAuthenticating}
+                className="w-full"
+              >
+                {isAuthenticating ? "Connecting..." : "Connect to Google Drive"}
+              </Button>
+            )}
             
             <Button 
               variant="outline" 
