@@ -4,9 +4,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useRecorderTimer } from "@/hooks/useRecorderTimer";
 import { useRecorderMedia } from "@/hooks/useRecorderMedia";
 import { useRecorderStorage } from "@/hooks/useRecorderStorage";
-import { UseRecorderProps, UseRecorderReturn } from "@/types/recorder";
+import { UseRecorderProps, UseRecorderReturn, RecordingStatus, StorageLocation } from "@/types/recorder";
 
-export { RecordingStatus, StorageLocation } from "@/types/recorder";
+// Use 'export type' to satisfy isolatedModules requirement
+export type { RecordingStatus, StorageLocation } from "@/types/recorder";
 
 export const useRecorder = ({ 
   preferredStorage = 'drive', 

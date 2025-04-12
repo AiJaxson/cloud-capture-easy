@@ -1,7 +1,7 @@
 
 import { useCallback, useRef } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import { RecordingStatus } from '@/types/recorder';
+import type { RecordingStatus } from '@/types/recorder';
 
 export const useRecorderMedia = (
   setStatus: React.Dispatch<React.SetStateAction<RecordingStatus>>,
