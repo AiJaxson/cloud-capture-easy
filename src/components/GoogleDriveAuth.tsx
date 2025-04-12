@@ -1,8 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Cloud, AlertCircle } from "lucide-react";
+
+// Google API client ID - replace with your own from Google Cloud Console
+const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"; // In a production app, this should come from environment variables
+const GOOGLE_API_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
 interface GoogleDriveAuthProps {
   isOpen: boolean;
@@ -16,15 +20,66 @@ const GoogleDriveAuth: React.FC<GoogleDriveAuthProps> = ({
   onAuthenticate
 }) => {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Load Google API client
+  useEffect(() => {
+    const loadGoogleApi = () => {
+      const script = document.createElement('script');
+      script.src = "https://apis.google.com/js/api.js";
+      script.onload = () => {
+        window.gapi.load('client:auth2', initGoogleAuth);
+      };
+      script.onerror = () => {
+        setAuthError("Failed to load Google API");
+      };
+      document.body.appendChild(script);
+    };
+
+    const initGoogleAuth = () => {
+      window.gapi.client.init({
+        clientId: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_API_SCOPE,
+        plugin_name: "CloudCapture"
+      }).then(() => {
+        console.log("Google API client initialized");
+      }).catch((error: any) => {
+        console.error("Google API initialization error:", error);
+        setAuthError("Failed to initialize Google API");
+      });
+    };
+
+    if (isOpen) {
+      loadGoogleApi();
+    }
+  }, [isOpen]);
 
   const handleAuth = () => {
     setIsAuthenticating(true);
-    // This would be replaced with actual Google Drive API authentication
-    setTimeout(() => {
+    setAuthError(null);
+    
+    try {
+      const auth2 = window.gapi.auth2.getAuthInstance();
+      
+      auth2.signIn().then(() => {
+        setIsAuthenticating(false);
+        // Save auth token for later use
+        const authResponse = auth2.currentUser.get().getAuthResponse();
+        localStorage.setItem('googleDriveToken', authResponse.access_token);
+        localStorage.setItem('googleDriveTokenExpiry', String(authResponse.expires_at));
+        
+        onAuthenticate();
+        onClose();
+      }).catch((error: any) => {
+        console.error("Google Sign-in error:", error);
+        setIsAuthenticating(false);
+        setAuthError("Authentication failed. Please try again.");
+      });
+    } catch (error) {
+      console.error("Auth error:", error);
       setIsAuthenticating(false);
-      onAuthenticate();
-      onClose();
-    }, 1500);
+      setAuthError("Authentication failed. Please try again.");
+    }
   };
 
   return (
@@ -45,6 +100,13 @@ const GoogleDriveAuth: React.FC<GoogleDriveAuthProps> = ({
               Connect your Google Drive account to automatically upload and store your recordings in the cloud.
             </p>
           </div>
+          
+          {authError && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm flex items-center gap-2 w-full">
+              <AlertCircle className="h-4 w-4" />
+              {authError}
+            </div>
+          )}
           
           <div className="flex flex-col space-y-3 pt-4 w-full">
             <Button 
@@ -73,5 +135,12 @@ const GoogleDriveAuth: React.FC<GoogleDriveAuthProps> = ({
     </Dialog>
   );
 };
+
+// Add TypeScript type definition for the Google API
+declare global {
+  interface Window {
+    gapi: any;
+  }
+}
 
 export default GoogleDriveAuth;

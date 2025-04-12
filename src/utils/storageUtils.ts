@@ -1,15 +1,15 @@
 
-// Mock implementation of storage utilities
-// In a real app, these would be implemented with actual Google Drive API
+// Storage utilities for local storage and Google Drive
 
 import { toast } from "sonner";
 
-interface StoredRecording {
+export interface StoredRecording {
   id: string;
   name: string;
   timestamp: number;
   url: string;
   storageType: 'local' | 'drive';
+  driveFileId?: string; // Google Drive file ID for drive uploads
 }
 
 // Local storage key
@@ -24,6 +24,20 @@ export const getStoredRecordings = (): StoredRecording[] => {
     console.error('Error retrieving recordings:', error);
     return [];
   }
+};
+
+// Check if user is authenticated with Google Drive
+export const isGoogleDriveAuthenticated = (): boolean => {
+  const token = localStorage.getItem('googleDriveToken');
+  const expiryStr = localStorage.getItem('googleDriveTokenExpiry');
+  
+  if (!token || !expiryStr) return false;
+  
+  // Check if token is expired
+  const expiry = parseInt(expiryStr);
+  const now = Date.now();
+  
+  return now < expiry;
 };
 
 // Save recording to local storage
@@ -53,58 +67,147 @@ export const saveToLocalStorage = async (blob: Blob, name: string): Promise<Stor
   });
 };
 
-// Mock Google Drive upload
+// Upload to Google Drive
 export const uploadToGoogleDrive = async (blob: Blob, name: string): Promise<StoredRecording> => {
-  return new Promise((resolve) => {
-    // This would be replaced with actual Google Drive API code
-    console.log('Uploading to Google Drive:', name);
+  // Check if we have a valid token
+  if (!isGoogleDriveAuthenticated()) {
+    throw new Error("Not authenticated with Google Drive");
+  }
+
+  try {
+    const accessToken = localStorage.getItem('googleDriveToken');
     
-    // Create recording metadata
+    // First, create a multipart request to upload the file
+    const metadata = {
+      name: `${name}.webm`, // Add extension
+      mimeType: 'video/webm',
+    };
+    
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', blob);
+    
+    // Upload file to Drive API
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: form,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Google Drive upload failed: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('File uploaded to Google Drive:', data);
+    
+    // Create recording metadata with Drive file ID
     const recording: StoredRecording = {
       id: `drive-${Date.now()}`,
       name,
       timestamp: Date.now(),
-      url: URL.createObjectURL(blob), // In real app, this would be a Drive URL
-      storageType: 'drive'
+      url: URL.createObjectURL(blob), // Local URL for preview
+      storageType: 'drive',
+      driveFileId: data.id
     };
     
     // Get existing recordings and add the new one
     const recordings = getStoredRecordings();
     recordings.unshift(recording);
     
-    // Save back to localStorage (for demo purposes)
+    // Save back to localStorage
     localStorage.setItem(RECORDINGS_STORAGE_KEY, JSON.stringify(recordings));
     
-    // Simulate network delay
-    setTimeout(() => resolve(recording), 1500);
-  });
+    return recording;
+  } catch (error) {
+    console.error('Error uploading to Google Drive:', error);
+    throw error;
+  }
 };
 
 // Delete a recording
 export const deleteRecording = async (id: string): Promise<void> => {
-  return new Promise((resolve) => {
-    const recordings = getStoredRecordings();
-    const updatedRecordings = recordings.filter(rec => rec.id !== id);
-    
-    // If we found a recording to delete
-    if (recordings.length !== updatedRecordings.length) {
-      localStorage.setItem(RECORDINGS_STORAGE_KEY, JSON.stringify(updatedRecordings));
-      toast("Recording deleted");
+  const recordings = getStoredRecordings();
+  const recordingToDelete = recordings.find(rec => rec.id === id);
+  
+  if (!recordingToDelete) {
+    return;
+  }
+  
+  // If it's a Google Drive file, delete from Drive as well
+  if (recordingToDelete.storageType === 'drive' && recordingToDelete.driveFileId) {
+    try {
+      const accessToken = localStorage.getItem('googleDriveToken');
+      
+      if (isGoogleDriveAuthenticated()) {
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${recordingToDelete.driveFileId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          }
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to delete file from Google Drive');
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting from Google Drive:', error);
     }
-    
-    resolve();
-  });
+  }
+  
+  // Remove from local recordings list
+  const updatedRecordings = recordings.filter(rec => rec.id !== id);
+  localStorage.setItem(RECORDINGS_STORAGE_KEY, JSON.stringify(updatedRecordings));
+  toast("Recording deleted");
 };
 
 // Update recording metadata
 export const updateRecordingName = async (id: string, newName: string): Promise<void> => {
-  return new Promise((resolve) => {
-    const recordings = getStoredRecordings();
-    const updatedRecordings = recordings.map(rec => 
-      rec.id === id ? { ...rec, name: newName } : rec
-    );
-    
-    localStorage.setItem(RECORDINGS_STORAGE_KEY, JSON.stringify(updatedRecordings));
-    resolve();
-  });
+  const recordings = getStoredRecordings();
+  const recordingToUpdate = recordings.find(rec => rec.id === id);
+  
+  if (!recordingToUpdate) {
+    return;
+  }
+  
+  // If it's a Google Drive file, update name on Drive as well
+  if (recordingToUpdate.storageType === 'drive' && recordingToUpdate.driveFileId) {
+    try {
+      const accessToken = localStorage.getItem('googleDriveToken');
+      
+      if (isGoogleDriveAuthenticated()) {
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${recordingToUpdate.driveFileId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            name: `${newName}.webm`
+          })
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to update file name on Google Drive');
+        }
+      }
+    } catch (error) {
+      console.error('Error updating name on Google Drive:', error);
+    }
+  }
+  
+  // Update in local recordings list
+  const updatedRecordings = recordings.map(rec => 
+    rec.id === id ? { ...rec, name: newName } : rec
+  );
+  
+  localStorage.setItem(RECORDINGS_STORAGE_KEY, JSON.stringify(updatedRecordings));
+};
+
+// Check Google Drive authentication status
+export const checkGoogleDriveAuth = async (): Promise<boolean> => {
+  return isGoogleDriveAuthenticated();
 };
