@@ -1,4 +1,3 @@
-
 import { useCallback, useRef } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import type { RecordingStatus } from '@/types/recorder';
@@ -16,47 +15,59 @@ export const useRecorderMedia = (
 
   const startMediaRecording = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
+      // Request screen stream
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           displaySurface: "monitor"
         },
         audio: true
       });
-      
-      screenStream.current = stream;
+
+      // Request microphone stream
+      const audioStream = await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
+
+      // Combine screen and microphone streams
+      const combinedStream = new MediaStream([
+        ...screenStream.getTracks(),
+        ...audioStream.getTracks()
+      ]);
+
+      screenStream.current = combinedStream;
       recordedChunks.current = [];
-      
-      const recorder = new MediaRecorder(stream);
-      
+
+      const recorder = new MediaRecorder(combinedStream);
+
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordedChunks.current.push(event.data);
         }
       };
-      
+
       recorder.onstop = () => {
-        const blob = new Blob(recordedChunks.current, { 
-          type: 'video/webm' 
+        const blob = new Blob(recordedChunks.current, {
+          type: 'video/webm'
         });
         setRecordedBlob(blob);
         setStatus('stopped');
         stopTimer();
       };
-      
+
       mediaRecorder.current = recorder;
       recorder.start();
       setStatus('recording');
       startTimer();
-      
+
       toast({
         title: "Recording started",
-        description: "Your screen is now being recorded"
+        description: "Your screen and microphone are now being recorded"
       });
     } catch (error) {
       console.error('Error starting recording:', error);
       toast({
         title: "Recording failed",
-        description: "Failed to start screen recording",
+        description: "Failed to start screen and microphone recording",
         variant: "destructive"
       });
       cleanupMediaResources();
